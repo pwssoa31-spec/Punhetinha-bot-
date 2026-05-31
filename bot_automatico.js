@@ -1,15 +1,26 @@
 const { default: makeWASocket, useMultiFileAuthState, downloadContentFromMessage } = require('@whiskeysockets/baileys');
-const qrcodeTerminal = require('qrcode-terminal');
-const QRCode = require('qrcode');
 const { exec } = require('child_process');
 const fs = require('fs');
+const http = require('http');
+const QRCode = require('qrcode');
+
+// Cria um mini servidor web para você ver o QR Code pelo navegador de fora!
+const port = process.env.PORT || 3000;
+http.createServer((req, res) => {
+    if (fs.existsSync('/tmp/qrcode.png')) {
+        res.writeHead(200, { 'Content-Type': 'image/png' });
+        res.end(fs.readFileSync('/tmp/qrcode.png'));
+    } else {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end('<h1>O Bot já está conectado ou o QR Code ainda não carregou! Atualize a página em instantes.</h1>');
+    }
+}).listen(port, () => console.log(`🌍 Servidor do QR Code rodando na porta ${port}`));
 
 async function iniciarBot() {
     const { state, saveCreds } = await useMultiFileAuthState('/tmp/auth_info_baileys');
     
     const sock = makeWASocket({
         auth: state,
-        // Removemos a linha antiga que causava o aviso amarelo
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -18,12 +29,9 @@ async function iniciarBot() {
         const { connection, qr } = update;
         
         if (qr) {
-            console.log("\n▲--------------------------------------------------▲");
-            console.log("GERANDO NOVO QR CODE ATUALIZADO... ESCANEIE RÁPIDO!");
-            console.log("▼--------------------------------------------------▼\n");
-            
-            // Força o desenho do QR Code de forma manual e compatível com o Render
-            qrcodeTerminal.generate(qr, { small: true });
+            console.log("📸 NOVO QR CODE GERADO! Acesse o link do Render para escanear!");
+            // Salva o QR Code como uma foto perfeita dentro do servidor
+            await QRCode.toFile('/tmp/qrcode.png', qr);
         }
         
         if (connection === 'close') {
@@ -31,6 +39,7 @@ async function iniciarBot() {
             iniciarBot();
         } else if (connection === 'open') {
             console.log('🤖 BOT ONLINE NA NUVEM E ESCUTANDO!');
+            if (fs.existsSync('/tmp/qrcode.png')) fs.unlinkSync('/tmp/qrcode.png');
         }
     });
 
@@ -53,13 +62,13 @@ async function iniciarBot() {
             fs.writeFileSync(inputPath, buffer);
 
             exec(`ffmpeg -y -i ${inputPath} -vcodec libwebp -vf "scale='min(512,iw)':'min(512,ih)':force_original_aspect_ratio=decrease,pad=512:512:(512-iw)/2:(512-ih)/2:color=0x00000000" ${outputPath}`, async (error) => {
-                if (error) { console.log('❌ Erro no FFmpeg da Nuvem:', error); return; }
+                if (error) { console.log('❌ Erro no FFmpeg:', error); return; }
 
                 try {
                     await sock.sendMessage(jid, { sticker: fs.readFileSync(outputPath) });
                     console.log('✅ Figurinha enviada com sucesso pela Nuvem!');
                 } catch (err) {
-                    console.log('❌ Erro ao enviar figurinha:', err);
+                    console.log('❌ Erro ao enviar:', err);
                 }
 
                 if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
