@@ -1,26 +1,31 @@
 const { default: makeWASocket, useMultiFileAuthState, downloadContentFromMessage } = require('@whiskeysockets/baileys');
-const qrcode = require('qrcode-terminal');
+const qrcodeTerminal = require('qrcode-terminal');
+const QRCode = require('qrcode');
 const { exec } = require('child_process');
 const fs = require('fs');
 
 async function iniciarBot() {
-    // Guarda a sessão na pasta temporária do Render
     const { state, saveCreds } = await useMultiFileAuthState('/tmp/auth_info_baileys');
     
     const sock = makeWASocket({
         auth: state,
-        printQRInTerminal: true
+        // Removemos a linha antiga que causava o aviso amarelo
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', (update) => {
+    sock.ev.on('connection.update', async (update) => {
         const { connection, qr } = update;
+        
         if (qr) {
-            // Desenha o QR Code diretamente nos logs do Render
-            qrcode.generate(qr, { small: true });
-            console.log("▲ ESCANEIE O QR CODE ACIMA NO SEU WHATSAPP ▲");
+            console.log("\n▲--------------------------------------------------▲");
+            console.log("GERANDO NOVO QR CODE ATUALIZADO... ESCANEIE RÁPIDO!");
+            console.log("▼--------------------------------------------------▼\n");
+            
+            // Força o desenho do QR Code de forma manual e compatível com o Render
+            qrcodeTerminal.generate(qr, { small: true });
         }
+        
         if (connection === 'close') {
             console.log('🔄 Conexão fechada, reconectando...');
             iniciarBot();
@@ -31,7 +36,6 @@ async function iniciarBot() {
 
     sock.ev.on('messages.upsert', async m => {
         const msg = m.messages[0];
-        // Ignora grupos para não gastar memória desnecessária
         if (!msg.message || msg.key.fromMe || msg.key.remoteJid.endsWith('@g.us')) return;
 
         const jid = msg.key.remoteJid;
@@ -48,12 +52,10 @@ async function iniciarBot() {
             const outputPath = '/tmp/figurinha.webp';
             fs.writeFileSync(inputPath, buffer);
 
-            // O Render possui FFmpeg de alta performance integrado!
             exec(`ffmpeg -y -i ${inputPath} -vcodec libwebp -vf "scale='min(512,iw)':'min(512,ih)':force_original_aspect_ratio=decrease,pad=512:512:(512-iw)/2:(512-ih)/2:color=0x00000000" ${outputPath}`, async (error) => {
                 if (error) { console.log('❌ Erro no FFmpeg da Nuvem:', error); return; }
 
                 try {
-                    // Envia diretamente pela biblioteca do WhatsApp, descartando o mudslide local
                     await sock.sendMessage(jid, { sticker: fs.readFileSync(outputPath) });
                     console.log('✅ Figurinha enviada com sucesso pela Nuvem!');
                 } catch (err) {
