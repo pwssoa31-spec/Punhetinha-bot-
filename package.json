@@ -1,1 +1,14 @@
+{
+  "name": "whatsapp-sticker-bot",
+  "version": "1.0.0",
+  "description": "Bot de figurinhas para WhatsApp no Render",
+  "main": "bot_automatico.js",
+  "scripts": {
+    "start": "node bot_automatico.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.6.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
 
