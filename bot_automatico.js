@@ -3,22 +3,21 @@ const { exec } = require('child_process');
 const fs = require('fs');
 const http = require('http');
 
-// ==========================================
-// SEU NÚMERO JÁ CONFIGURADO CORRETAMENTE!
+// Seu número configurado
 const NUMERO_DO_BOT = '5583986980613'; 
-// ==========================================
 
-// Abre a porta para o Render ficar estável e dar "Live"
+// Cria o servidor web para o Render dar "Live"
 const port = process.env.PORT || 3000;
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end('<h1>O Bot está rodando! Olhe a aba de LOGS no Render para pegar o código de conexão.</h1>');
+    res.end('<h1>Bot Ativo! Verifique os LOGS no Render para pegar o código.</h1>');
 }).listen(port, () => {
-    console.log(`🌍 Conexão web ativa na porta ${port}`);
+    console.log(`🌍 Porta web ativa: ${port}`);
     iniciarBot();
 });
 
 async function iniciarBot() {
+    // Armazena a sessão na pasta /tmp do Render
     const { state, saveCreds } = await useMultiFileAuthState('/tmp/auth_info_baileys');
     
     const sock = makeWASocket({
@@ -26,15 +25,29 @@ async function iniciarBot() {
         printQRInTerminal: false
     });
 
-    // Função interna para pedir o código com repetição inteligente se der erro
-    async function pedirCodigoConexao() {
-        if (!sock.authState.creds.registered) {
-            let numeroLimpo = NUMERO_DO_BOT.replace(/[^0-9]/g, '');
-            console.log(`\n📲 [Tentativa] Gerando código de conexão para: ${numeroLimpo}...`);
-            
+    sock.ev.on('creds.update', saveCreds);
+
+    // Evento que monitora a conexão
+    sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect } = update;
+        
+        if (connection === 'close') {
+            console.log('🔄 Conexão fechada, reiniciando o bot...');
+            iniciarBot();
+        } 
+        
+        else if (connection === 'open') {
+            console.log('🤖 BOT ONLINE NA NUVEM E ESCUTANDO!');
+        }
+    });
+
+    // Pede o código de pareamento UMA VEZ SÓ com tempo de segurança de 15 segundos
+    if (!sock.authState.creds.registered) {
+        console.log("⏳ Aguardando 15 segundos para estabilizar a rede antes de gerar o código...");
+        setTimeout(async () => {
             try {
-                // Aguarda um pequeno delay para a conexão firmar
-                await new Promise(resolve => setTimeout(resolve, 6000));
+                let numeroLimpo = NUMERO_DO_BOT.replace(/[^0-9]/g, '');
+                console.log(`📲 Solicitando código de pareamento para: ${numeroLimpo}`);
                 
                 let codigo = await sock.requestPairingCode(numeroLimpo);
                 
@@ -42,28 +55,12 @@ async function iniciarBot() {
                 console.log(`👉 SEU CÓDIGO DE CONEXÃO É:  ${codigo}  👈`);
                 console.log(`==================================================\n`);
             } catch (err) {
-                console.log("⚠️ Conexão oscilou ao pedir código. Tentando novamente em 7 segundos...");
-                // Se der erro de 'Connection Closed', tenta novamente em 7 segundos
-                setTimeout(pedirCodigoConexao, 7000);
+                console.log("❌ Erro ao gerar o código. Dê um 'Manual Deploy' para tentar novamente:", err.message);
             }
-        }
+        }, 15000); // 15 segundos cravados para o WhatsApp não bloquear
     }
 
-    // Dispara a tentativa após o bot ligar
-    pedirCodigoConexao();
-
-    sock.ev.on('creds.update', saveCreds);
-
-    sock.ev.on('connection.update', (update) => {
-        const { connection } = update;
-        if (connection === 'close') {
-            console.log('🔄 Conexão fechada, reconectando...');
-            iniciarBot();
-        } else if (connection === 'open') {
-            console.log('🤖 BOT ONLINE NA NUVEM E ESCUTANDO!');
-        }
-    });
-
+    // Código das figurinhas (Mantido igual e funcional)
     sock.ev.on('messages.upsert', async m => {
         const msg = m.messages[0];
         if (!msg.message || msg.key.fromMe || msg.key.remoteJid.endsWith('@g.us')) return;
@@ -73,7 +70,7 @@ async function iniciarBot() {
         const caption = msg.message[messageType]?.caption || '';
 
         if (messageType === 'imageMessage' && (caption === '!s' || caption === '!f')) {
-            console.log(`📸 Foto recebida, processando na nuvem...`);
+            console.log(`📸 Processando foto recebida na nuvem...`);
             const stream = await downloadContentFromMessage(msg.message.imageMessage, 'image');
             let buffer = Buffer.from([]);
             for await(const chunk of stream) { buffer = Buffer.concat([buffer, chunk]); }
@@ -87,7 +84,7 @@ async function iniciarBot() {
 
                 try {
                     await sock.sendMessage(jid, { sticker: fs.readFileSync(outputPath) });
-                    console.log('✅ Figurinha enviada com sucesso pela Nuvem!');
+                    console.log('✅ Figurinha enviada com sucesso!');
                 } catch (err) {
                     console.log('❌ Erro ao enviar:', err);
                 }
