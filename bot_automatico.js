@@ -4,7 +4,7 @@ const { exec } = require('child_process');
 const fs = require('fs');
 
 async function iniciarBot() {
-    // Armazena a sessão na pasta temporária do Render
+    // Guarda a sessão na pasta temporária do Render
     const { state, saveCreds } = await useMultiFileAuthState('/tmp/auth_info_baileys');
     
     const sock = makeWASocket({
@@ -17,7 +17,7 @@ async function iniciarBot() {
     sock.ev.on('connection.update', (update) => {
         const { connection, qr } = update;
         if (qr) {
-            // Isso vai printar o QR Code nos logs do Render
+            // Desenha o QR Code diretamente nos logs do Render
             qrcode.generate(qr, { small: true });
             console.log("▲ ESCANEIE O QR CODE ACIMA NO SEU WHATSAPP ▲");
         }
@@ -31,7 +31,7 @@ async function iniciarBot() {
 
     sock.ev.on('messages.upsert', async m => {
         const msg = m.messages[0];
-        // Ignora grupos para não pesar
+        // Ignora grupos para não gastar memória desnecessária
         if (!msg.message || msg.key.fromMe || msg.key.remoteJid.endsWith('@g.us')) return;
 
         const jid = msg.key.remoteJid;
@@ -48,16 +48,16 @@ async function iniciarBot() {
             const outputPath = '/tmp/figurinha.webp';
             fs.writeFileSync(inputPath, buffer);
 
-            // O Render já tem FFmpeg de alta potência nativo na nuvem!
+            // O Render possui FFmpeg de alta performance integrado!
             exec(`ffmpeg -y -i ${inputPath} -vcodec libwebp -vf "scale='min(512,iw)':'min(512,ih)':force_original_aspect_ratio=decrease,pad=512:512:(512-iw)/2:(512-ih)/2:color=0x00000000" ${outputPath}`, async (error) => {
                 if (error) { console.log('❌ Erro no FFmpeg da Nuvem:', error); return; }
 
                 try {
-                    // Envia direto pela biblioteca, sem precisar do mudslide!
+                    // Envia diretamente pela biblioteca do WhatsApp, descartando o mudslide local
                     await sock.sendMessage(jid, { sticker: fs.readFileSync(outputPath) });
                     console.log('✅ Figurinha enviada com sucesso pela Nuvem!');
                 } catch (err) {
-                    console.log('❌ Erro ao enviar:', err);
+                    console.log('❌ Erro ao enviar figurinha:', err);
                 }
 
                 if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
