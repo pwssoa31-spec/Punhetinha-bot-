@@ -16,7 +16,6 @@ http.createServer((req, res) => {
     }
 }).listen(port, () => {
     console.log(`🌍 PORTA ${port} LIBERADA! Iniciando o Bot do WhatsApp...`);
-    // Só inicia o bot depois que a porta web já estiver aberta e ativa
     iniciarBot();
 });
 
@@ -34,7 +33,6 @@ async function iniciarBot() {
         
         if (qr) {
             console.log("📸 NOVO QR CODE PRONTO NO LINK!");
-            // Cria a imagem perfeita do QR Code
             await QRCode.toFile('/tmp/qrcode.png', qr);
         }
         
