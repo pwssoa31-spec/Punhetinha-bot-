@@ -4,12 +4,11 @@ const fs = require('fs');
 const http = require('http');
 
 // ==========================================
-// CONFIGURAÇÃO: COLOQUE O NÚMERO DO SEU BOT AQUI!
-// Tem que ser o número com 55 + DDD + Número, tudo junto. Ex: '5583988887777'
+// SEU NÚMERO JÁ CONFIGURADO CORRETAMENTE!
 const NUMERO_DO_BOT = '5583986980613'; 
 // ==========================================
 
-// Abre a porta para o Render ficar feliz e dar "Live"
+// Abre a porta para o Render ficar estável e dar "Live"
 const port = process.env.PORT || 3000;
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -24,26 +23,34 @@ async function iniciarBot() {
     
     const sock = makeWASocket({
         auth: state,
-        printQRInTerminal: false // Desativa o QR code problemático
+        printQRInTerminal: false
     });
 
-    // Se não estiver conectado e não tiver sessão salva, pede o código de 8 dígitos
-    if (!sock.authState.creds.registered) {
-        setTimeout(async () => {
+    // Função interna para pedir o código com repetição inteligente se der erro
+    async function pedirCodigoConexao() {
+        if (!sock.authState.creds.registered) {
+            let numeroLimpo = NUMERO_DO_BOT.replace(/[^0-9]/g, '');
+            console.log(`\n📲 [Tentativa] Gerando código de conexão para: ${numeroLimpo}...`);
+            
             try {
-                let numeroLimpo = NUMERO_DO_BOT.replace(/[^0-9]/g, '');
-                console.log(`\n==================================================`);
-                console.log(`📲 GERANDO CÓDIGO DE CONEXÃO PARA O NÚMERO: ${numeroLimpo}`);
+                // Aguarda um pequeno delay para a conexão firmar
+                await new Promise(resolve => setTimeout(resolve, 6000));
                 
                 let codigo = await sock.requestPairingCode(numeroLimpo);
                 
-                console.log(`\n👉 SEU CÓDIGO DE CONEXÃO É:  ${codigo}  👈`);
+                console.log(`\n==================================================`);
+                console.log(`👉 SEU CÓDIGO DE CONEXÃO É:  ${codigo}  👈`);
                 console.log(`==================================================\n`);
             } catch (err) {
-                console.log("❌ Erro ao pedir código de conexão. Verifique se o número está correto:", err);
+                console.log("⚠️ Conexão oscilou ao pedir código. Tentando novamente em 7 segundos...");
+                // Se der erro de 'Connection Closed', tenta novamente em 7 segundos
+                setTimeout(pedirCodigoConexao, 7000);
             }
-        }, 5000); // Aguarda 5 segundos para garantir a inicialização
+        }
     }
+
+    // Dispara a tentativa após o bot ligar
+    pedirCodigoConexao();
 
     sock.ev.on('creds.update', saveCreds);
 
