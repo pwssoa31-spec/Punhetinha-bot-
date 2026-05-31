@@ -4,7 +4,7 @@ const fs = require('fs');
 const http = require('http');
 const QRCode = require('qrcode');
 
-// Cria um mini servidor web para você ver o QR Code pelo navegador de fora!
+// 1. ABRE A PORTA DA INTERNET IMEDIATAMENTE (Pro Render liberar o link)
 const port = process.env.PORT || 3000;
 http.createServer((req, res) => {
     if (fs.existsSync('/tmp/qrcode.png')) {
@@ -12,9 +12,13 @@ http.createServer((req, res) => {
         res.end(fs.readFileSync('/tmp/qrcode.png'));
     } else {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end('<h1>O Bot já está conectado ou o QR Code ainda não carregou! Atualize a página em instantes.</h1>');
+        res.end('<h1>O QR Code está sendo gerado na Nuvem... Atualize a página em 10 segundos!</h1>');
     }
-}).listen(port, () => console.log(`🌍 Servidor do QR Code rodando na porta ${port}`));
+}).listen(port, () => {
+    console.log(`🌍 PORTA ${port} LIBERADA! Iniciando o Bot do WhatsApp...`);
+    // Só inicia o bot depois que a porta web já estiver aberta e ativa
+    iniciarBot();
+});
 
 async function iniciarBot() {
     const { state, saveCreds } = await useMultiFileAuthState('/tmp/auth_info_baileys');
@@ -29,8 +33,8 @@ async function iniciarBot() {
         const { connection, qr } = update;
         
         if (qr) {
-            console.log("📸 NOVO QR CODE GERADO! Acesse o link do Render para escanear!");
-            // Salva o QR Code como uma foto perfeita dentro do servidor
+            console.log("📸 NOVO QR CODE PRONTO NO LINK!");
+            // Cria a imagem perfeita do QR Code
             await QRCode.toFile('/tmp/qrcode.png', qr);
         }
         
@@ -77,4 +81,3 @@ async function iniciarBot() {
         }
     });
 }
-iniciarBot();
